@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "TDM-GCC-64", 
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/TDM-GCC-64/x86_64-w64-mingw32/include",
+                "C:/TDM-GCC-64/lib/gcc/x86_64-w64-mingw32/*/include/c++" 
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            // ¡Punto clave! Apunta al compilador GCC
+            "compilerPath": "C:/TDM-GCC-64/bin/g++.exe", 
+            // ¡Punto clave! Cambia el modo a GCC
+            "intelliSenseMode": "windows-gcc-x64" 
+        }
+    ],
+    "version": 4
+}
