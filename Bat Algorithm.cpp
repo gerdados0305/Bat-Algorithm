@@ -1,117 +1,163 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
-#include <cstdlib>
 #include <ctime>
+#include <cstdlib>
 using namespace std;
 
-// Parámetros del problema
+// ---------------------------------------------------------
+// 🔹 Definición del problema de la mochila
+// ---------------------------------------------------------
 const int NUM_OBJETOS = 10;
 const int CAPACIDAD_MAX = 35;
 
-// Parámetros del algoritmo
-const int NUM_MURCIELAGOS = 20;
-const int MAX_ITER = 100;
-const double FREQ_MIN = 0.0;
-const double FREQ_MAX = 2.0;
-const double ALPHA = 0.9;   // reducción del volumen
-const double GAMMA = 0.9;   // incremento del pulso
+int valores[NUM_OBJETOS] = {10, 5, 15, 7, 6, 18, 3, 12, 8, 9};
+int pesos[NUM_OBJETOS]   = {2, 5, 7, 1, 4, 6, 3, 6, 3, 2};
 
-// Datos del problema (valores y pesos)
-int valores[NUM_OBJETOS]  = {10, 5, 15, 7, 6, 18, 3, 12, 8, 9};
-int pesos[NUM_OBJETOS]    = {2, 3, 5, 7, 1, 4, 1, 6, 3, 2};
-
-// Función para evaluar el fitness de una solución
 double fitness(const vector<int>& solucion) {
-    int peso_total = 0, valor_total = 0;
+    int peso_total = 0;
+    int valor_total = 0;
+
     for (int i = 0; i < NUM_OBJETOS; i++) {
         peso_total += pesos[i] * solucion[i];
         valor_total += valores[i] * solucion[i];
     }
-    if (peso_total > CAPACIDAD_MAX) return 0; // penalización
+
+    // penalización si se pasa de capacidad
+    if (peso_total > CAPACIDAD_MAX)
+        return 0;
+
     return valor_total;
 }
 
-// Generar un número aleatorio 0,1
-double rand01() {
-    return (double)rand() / RAND_MAX;
+// ---------------------------------------------------------
+// 🔹 Parámetros del Algoritmo de Murciélago
+// ---------------------------------------------------------
+const int NUM_MURCIELAGOS = 20;
+const int MAX_ITER = 100;
+const double FREQ_MIN = 0.0;
+const double FREQ_MAX = 2.0;
+const double ALPHA = 0.9;
+const double GAMMA = 0.9;
+
+double rand01() { return (double)rand() / RAND_MAX; }
+
+// ---------------------------------------------------------
+// 🔹 Función para binarizar una solución continua (0-1)
+// ---------------------------------------------------------
+int binarize(double value) {
+    return (rand01() < 1.0 / (1.0 + exp(-10 * (value - 0.5)))) ? 1 : 0;
 }
 
+// ---------------------------------------------------------
+// 🔹 Programa principal
+// ---------------------------------------------------------
 int main() {
     srand(time(0));
 
-    vector<vector<int>> murcielagos(NUM_MURCIELAGOS, vector<int>(NUM_OBJETOS));
-    vector<vector<double>> velocidad(NUM_MURCIELAGOS, vector<double>(NUM_OBJETOS, 0.0));
+    vector<vector<double>> posiciones(NUM_MURCIELAGOS, vector<double>(NUM_OBJETOS, 0.0));
+    vector<vector<double>> velocidades(NUM_MURCIELAGOS, vector<double>(NUM_OBJETOS, 0.0));
     vector<double> frecuencia(NUM_MURCIELAGOS, 0.0);
     vector<double> loudness(NUM_MURCIELAGOS, 1.0);
     vector<double> pulse_rate(NUM_MURCIELAGOS, 0.5);
     vector<double> fitness_val(NUM_MURCIELAGOS, 0.0);
 
-    // Inicialización aleatoria
+    // Inicializar murciélagos con soluciones aleatorias
     for (int i = 0; i < NUM_MURCIELAGOS; i++) {
         for (int j = 0; j < NUM_OBJETOS; j++) {
-            murcielagos[i][j] = rand() % 2;
+            posiciones[i][j] = rand01(); // posición continua
         }
-        fitness_val[i] = fitness(murcielagos[i]);
+
+        // Convertir a binario para evaluar
+        vector<int> sol(NUM_OBJETOS);
+        for (int j = 0; j < NUM_OBJETOS; j++)
+            sol[j] = binarize(posiciones[i][j]);
+
+        fitness_val[i] = fitness(sol);
     }
 
-    // Encontrar el mejor inicial
+    // Mejor solución inicial
     int best_index = 0;
-    for (int i = 1; i < NUM_MURCIELAGOS; i++)
-        if (fitness_val[i] > fitness_val[best_index]) best_index = i;
-    vector<int> best_solution = murcielagos[best_index];
-    double best_fitness = fitness_val[best_index];
+    double best_fitness = fitness_val[0];
+    vector<double> best_pos = posiciones[0];
 
-    // Iteraciones principales
+    for (int i = 1; i < NUM_MURCIELAGOS; i++) {
+        if (fitness_val[i] > best_fitness) {
+            best_fitness = fitness_val[i];
+            best_pos = posiciones[i];
+        }
+    }
+
+    // -----------------------------------------------------
+    // 🔹 Bucle principal del algoritmo
+    // -----------------------------------------------------
     for (int t = 0; t < MAX_ITER; t++) {
         for (int i = 0; i < NUM_MURCIELAGOS; i++) {
-
-            // 1. Actualizar frecuencia
             frecuencia[i] = FREQ_MIN + (FREQ_MAX - FREQ_MIN) * rand01();
 
-            // 2. Actualizar velocidad
+            // Actualizar velocidad y posición
             for (int j = 0; j < NUM_OBJETOS; j++) {
-                velocidad[i][j] += (murcielagos[i][j] - best_solution[j]) * frecuencia[i];
+                velocidades[i][j] += (posiciones[i][j] - best_pos[j]) * frecuencia[i];
+                posiciones[i][j] += velocidades[i][j];
+
+                // mantener valores en [0,1]
+                if (posiciones[i][j] < 0) posiciones[i][j] = 0;
+                if (posiciones[i][j] > 1) posiciones[i][j] = 1;
             }
 
-            // 3. Actualizar posición (usando función sigmoide)
-            for (int j = 0; j < NUM_OBJETOS; j++) {
-                double S = 1.0 / (1.0 + exp(-velocidad[i][j]));
-                if (rand01() < S)
-                    murcielagos[i][j] = 1 - murcielagos[i][j]; // flip bit
-            }
-
-            // 4. Generar una solución local con cierta probabilidad
+            // Nueva solución local aleatoria
             if (rand01() > pulse_rate[i]) {
                 for (int j = 0; j < NUM_OBJETOS; j++) {
-                    if (rand01() < 0.1) murcielagos[i][j] = 1 - murcielagos[i][j];
+                    posiciones[i][j] = best_pos[j] + 0.001 * rand01();
+                    if (posiciones[i][j] < 0) posiciones[i][j] = 0;
+                    if (posiciones[i][j] > 1) posiciones[i][j] = 1;
                 }
             }
 
-            // 5. Evaluar
-            double f_new = fitness(murcielagos[i]);
+            // Convertir a binario
+            vector<int> sol(NUM_OBJETOS);
+            for (int j = 0; j < NUM_OBJETOS; j++)
+                sol[j] = binarize(posiciones[i][j]);
 
-            // 6. Aceptar solución si mejora
-            if (f_new > fitness_val[i] && rand01() < loudness[i]) {
-                fitness_val[i] = f_new;
+            double new_fitness = fitness(sol);
+
+            // Aceptar la nueva solución si mejora o con cierta probabilidad
+            if (new_fitness >= fitness_val[i] && rand01() < loudness[i]) {
+                fitness_val[i] = new_fitness;
                 loudness[i] *= ALPHA;
                 pulse_rate[i] = pulse_rate[i] * (1 - exp(-GAMMA * t));
             }
 
-            // Actualizar mejor global
-            if (f_new > best_fitness) {
-                best_fitness = f_new;
-                best_solution = murcielagos[i];
+            // Actualizar mejor solución global
+            if (new_fitness > best_fitness) {
+                best_fitness = new_fitness;
+                best_pos = posiciones[i];
             }
         }
     }
 
-    // Mostrar resultado final
-    cout << "Mejor valor encontrado: " << best_fitness << endl;
+    // -----------------------------------------------------
+    // 🔹 Resultado final
+    // -----------------------------------------------------
+    vector<int> best_sol(NUM_OBJETOS);
+    for (int j = 0; j < NUM_OBJETOS; j++)
+        best_sol[j] = binarize(best_pos[j]);
+
+    int total_peso = 0;
+    int total_valor = 0;
+    cout << "\n===== RESULTADOS FINALES =====" << endl;
     cout << "Objetos seleccionados: ";
-    for (int i = 0; i < NUM_OBJETOS; i++)
-        if (best_solution[i]) cout << i + 1 << " ";
-    cout << endl;
+
+    for (int j = 0; j < NUM_OBJETOS; j++) {
+        cout << best_sol[j] << " ";
+        total_peso += pesos[j] * best_sol[j];
+        total_valor += valores[j] * best_sol[j];
+    }
+
+    cout << "\nPeso total: " << total_peso;
+    cout << "\nValor total: " << total_valor;
+    cout << "\nFitness (valor máximo): " << best_fitness << endl;
+    cout << "===================================" << endl;
 
     return 0;
 }
